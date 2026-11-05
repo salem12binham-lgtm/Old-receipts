@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الدخولات والمصروفات</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --border:#262b36; --text:#e8eaed;
+    --muted:#8b90a0; --accent:#3b82f6; --accent2:#22c55e; --danger:#ef4444; --warn:#eab308; --purple:#a855f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  header{padding:16px;text-align:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
+  header h1{margin:0;font-size:20px}
+  .tabs{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .tab-btn{flex:1;max-width:150px;padding:11px 8px;border-radius:10px;border:1px solid var(--border);background:#0c0e13;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer}
+  .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tab-btn.inc.active{background:var(--accent2);border-color:var(--accent2);color:#000}
+  .tab-btn.exp.active{background:var(--danger);border-color:var(--danger)}
+  .wrap{max-width:680px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
+  input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:#0c0e13;color:var(--text);font-size:15px;font-family:inherit}
+  textarea{resize:vertical;min-height:56px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  button{cursor:pointer;border:none;border-radius:10px;font-size:15px;font-weight:600;padding:13px;font-family:inherit}
+  button:disabled{opacity:.5}
+  .btn-main{width:100%;background:var(--accent);color:#fff;margin-top:14px}
+  .btn-sm{font-size:12px;padding:8px 10px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#0c0e13;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:8px 10px;border-radius:20px}
+  .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip.shared.active{background:var(--purple);border-color:var(--purple)}
+  .shareBox{margin-top:10px;padding:12px;border:1px dashed var(--purple);border-radius:12px;display:none}
+  .shareBox.show{display:block}
+  .remain{font-size:13px;margin-top:8px;font-weight:600}
+  .imgpick{border:2px dashed var(--border);border-radius:12px;padding:14px;text-align:center;cursor:pointer;margin-top:10px}
+  .preview-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;justify-content:center}
+  .preview-thumb{position:relative;width:72px;height:72px}
+  .preview-thumb img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+  .preview-del{position:absolute;top:-7px;left:-7px;background:var(--danger);color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center}
+  .item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;gap:12px}
+  .item .info{flex:1;min-width:0}
+  .item .title{font-weight:600;font-size:15px}
+  .item .sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .amt{font-size:15px;font-weight:700;margin-top:4px}
+  .amt.inc{color:var(--accent2)} .amt.exp{color:var(--danger)}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#1e2a44;color:#93c5fd;margin:4px 0 0 4px}
+  .tag.sh{background:#2e1f44;color:#d8b4fe}
+  .del{background:none;color:var(--danger);font-size:14px;padding:4px}
+  .empty{text-align:center;color:var(--muted);padding:24px 10px}
+  .secTitle{font-weight:700;margin:16px 0 8px;color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .stat{background:#0c0e13;border:1px solid var(--border);border-radius:10px;padding:8px;text-align:center}
+  .stat .l{font-size:11px;color:var(--muted)} .stat .v{font-size:15px;font-weight:700;margin-top:2px}
+  table.sum{width:100%;border-collapse:collapse;font-size:14px}
+  table.sum th,table.sum td{border-bottom:1px solid var(--border);padding:10px 6px;text-align:right}
+  table.sum th{color:var(--muted);font-weight:600;font-size:12px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2430;border:1px solid var(--border);padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:300}
+  .toast.show{opacity:1}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+  .modal.show{display:flex}
+  .modal img{max-width:100%;max-height:90vh;border-radius:8px}
+  .modal-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:26px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:110;border:2px solid rgba(255,255,255,.7);padding:0}
+  #modalPrev{left:14px} #modalNext{right:14px}
+  #modalCounter{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:12px;direction:ltr}
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:16px;overflow-y:auto}
+  .sheet.show{display:flex}
+  .sheet-inner{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:560px;margin-top:30px}
+  .prevTable{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+  .prevTable td,.prevTable th{border:1px solid var(--border);padding:5px;text-align:right}
+  .cfgbox{font-size:13px;color:var(--muted);text-align:center;padding:20px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📒 الدخولات والمصروفات</h1>
+  <div class="tabs">
+    <button class="tab-btn inc" data-kind="income" onclick="switchKind('income')">💰 الدخولات</button>
+    <button class="tab-btn exp active" data-kind="expense" onclick="switchKind('expense')">💸 المصروفات</button>
+    <button class="tab-btn" data-kind="summary" onclick="switchKind('summary')">📊 الملخص</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- فلتر الجهة -->
+  <div class="tabs" id="partyFilter" style="margin:0 0 14px"></div>
+
+  <!-- نموذج الإضافة -->
+  <div class="card" id="formCard">
+    <div id="formTitle" style="font-weight:700;margin-bottom:4px">➕ مصروف جديد</div>
+    <label id="lblTitle">البيان / الغرض</label>
+    <input id="fTitle" placeholder="مثال: صيانة مصعد، كهرباء...">
+
+    <div class="row2">
+      <div>
+        <label id="lblParty">لمين (المستلم)</label>
+        <input id="fParty" placeholder="اسم الشخص/الجهة">
+      </div>
+      <div>
+        <label>المبلغ</label>
+        <input id="fAmount" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>التاريخ</label>
+        <input id="fDate" type="date">
+      </div>
+      <div>
+        <label>طريقة الدفع / الحساب</label>
+        <input id="fMethod" placeholder="كاش / تحويل / شيك...">
+      </div>
+    </div>
+
+    <label>على حساب مين؟</label>
+    <div class="chips" id="formAllocChips"></div>
+    <div class="shareBox" id="formShareBox"></div>
+
+    <label>ملاحظات (اختياري)</label>
+    <textarea id="fNotes" placeholder="أي تفاصيل إضافية"></textarea>
+
+    <div class="imgpick" id="picker">
+      <div id="pickerText">🖼️ صور الإيصال / الفاتورة (اختياري)</div>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      <div class="preview-grid" id="previewGrid"></div>
+    </div>
+
+    <button class="btn-main" id="saveBtn">💾 حفظ</button>
+    <button id="cancelEditBtn" style="width:100%;background:var(--danger);color:#fff;margin-top:8px;display:none" onclick="resetForm()">❌ إلغاء التعديل</button>
+  </div>
+
+  <!-- استيراد -->
+  <div class="card" id="importCard">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button style="flex:1;background:var(--accent2);color:#000" onclick="openImport()">📥 استيراد من Excel / CSV</button>
+      <button style="flex:1;background:#1f2430;color:var(--text);border:1px solid var(--border)" onclick="undoLastImport()">↩️ تراجع عن آخر استيراد</button>
+      <button style="flex:1 1 100%;background:var(--purple);color:#fff" onclick="autoAllocFromName()">🪄 توزيع تلقائي: اللي اسمه نفس اسم جهة</button>
+    </div>
+  </div>
+
+  <!-- الفلاتر والإجمالي -->
+  <div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <label style="margin:0;flex:1;min-width:100px">📊 السنة <select id="yearFilter" style="margin-top:6px"></select></label>
+    <label style="margin:0;flex:1;min-width:100px">🗓️ الشهر <select id="monthFilter" style="margin-top:6px"></select></label>
+    <button id="printBtn" style="background:var(--accent2);color:#000;padding:11px 16px">🖨️ طباعة</button>
+  </div>
+
+  <div class="card" id="totalCard" style="text-align:center;padding:14px">
+    <div style="font-size:13px;color:var(--muted)" id="totalLabel">الإجمالي</div>
+    <div style="font-size:26px;font-weight:700;margin-top:4px" id="totalAmount">0</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px" id="totalCount">0</div>
+    <div class="stats" id="partyStats"></div>
+  </div>
+
+  <div id="summaryArea"></div>
+
+  <input id="search" placeholder="🔍 بحث بالبيان أو الاسم أو الملاحظات..." style="margin-bottom:10px">
+  <div id="list"></div>
+</div>
+
+<!-- نافذة التقسيم المشترك -->
+<div class="sheet" id="shareSheet">
+  <div class="sheet-inner">
+    <div style="font-weight:700">🤝 تقسيم مشترك</div>
+    <div id="shareSheetInfo" class="sub" style="font-size:13px;color:var(--muted);margin-top:4px"></div>
+    <div id="shareSheetBox"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button style="flex:1;background:var(--purple);color:#fff" onclick="saveShareSheet()">💾 حفظ التقسيم</button>
+      <button style="flex:1;background:#1f2430;color:var(--text)" onclick="closeSheet('shareSheet')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة الاستيراد -->
+<div class="sheet" id="importSheet">
+  <div class="sheet-inner">
+    <div style="font-weight:700" id="importTitle">📥 استيراد</div>
+    <label>اختر الملف (xlsx / xls / csv)</label>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+    <div id="importBody"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button id="importGo" style="flex:1;background:var(--accent2);color:#000;display:none" onclick="doImport()">✅ استيراد</button>
+      <button style="flex:1;background:#1f2430;color:var(--text)" onclick="closeSheet('importSheet')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal">
+  <button class="modal-nav" id="modalPrev" onclick="galleryPrev(event)">‹</button>
+  <img id="modalImg">
+  <div id="modalCounter"></div>
+  <button class="modal-nav" id="modalNext" onclick="galleryNext(event)">›</button>
+</div>
+
+<script>
+// ============= إعدادات Firebase =============
+const firebaseConfig = {
+  apiKey: "AIzaSyDheGZnpyKs4zie0pxsS5zbUEjsQN0tUvI",
+  authDomain: "old-receipts.firebaseapp.com",
+  projectId: "old-receipts",
+  storageBucket: "old-receipts.firebasestorage.app",
+  messagingSenderId: "258434071566",
+  appId: "1:258434071566:web:9cc7cc14134009541d105f",
+  measurementId: "G-VZ5C0Q2JCT"
+};
+// ==============================================
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const col = db.collection("finance");
+
+const PARTIES = ["بناية", "الشيخ عبدالله", "ورثة", "سهيل", "محمد", "سليمان", "سعودية", "حسن", "نايف"];
+const ICONS = { "بناية":"🏢", "الشيخ عبدالله":"👳", "ورثة":"👨‍👩‍👧", "سهيل":"👤", "محمد":"👤", "سليمان":"👤", "سعودية":"🇸🇦", "حسن":"👤", "نايف":"👤", "مشترك":"🤝" };
+const SHARED = "مشترك";
+const monthNames = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+let allItems = [];
+let activeKind = "expense";
+let partyFilter = "";        // "" | party | "pending"
+let editingId = null;
+let selectedImages = [];
+let formAllocMode = null;    // null | party | "مشترك"
+let formAlloc = {};          // للمشترك
+let shareSheetId = null;
+let shareSheetAlloc = {};
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => (Math.round((n||0)*100)/100).toLocaleString("en-US", {maximumFractionDigits:2});
+const kindLabel = (k) => k === "income" ? "الدخولات" : "المصروفات";
+
+function escapeHtml(str){ const d = document.createElement("div"); d.textContent = str ?? ""; return d.innerHTML; }
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2200); }
+function getImages(it){ return Array.isArray(it.images) ? it.images.filter(Boolean) : []; }
+
+// ===== التوزيع =====
+// allocMode: null (بدون جهة) | اسم جهة (كامل المبلغ عليها) | "مشترك" (alloc فيه المبالغ)
+function shareOf(it, p){
+  if (!it.allocMode) return 0;
+  if (it.allocMode === SHARED) return Number((it.alloc||{})[p]) || 0;
+  return it.allocMode === p ? (Number(it.amount)||0) : 0;
+}
+function allocSum(a){ return PARTIES.reduce((s,p) => s + (Number(a[p])||0), 0); }
+
+function shareInputsHtml(prefix, alloc, amount){
+  return `
+    <div class="row3">
+      ${PARTIES.map(p => `
+        <div>
+          <label style="margin-top:0">${ICONS[p]} ${p}</label>
+          <input type="number" step="0.01" inputmode="decimal" id="${prefix}_${p}" value="${alloc[p] ?? ""}" oninput="onShareInput('${prefix}')">
+        </div>`).join("")}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button type="button" class="btn-sm" style="background:#1f2430;color:var(--text)" onclick="splitEqual('${prefix}', 3)">➗ بالتساوي على الثلاثة</button>
+      <button type="button" class="btn-sm" style="background:#1f2430;color:var(--text)" onclick="splitEqual('${prefix}', 2)">➗ بالتساوي على المعبّى منهم</button>
+    </div>
+    <div class="remain" id="${prefix}_remain"></div>`;
+}
+
+function readShare(prefix){
+  const a = {};
+  PARTIES.forEach(p => { const v = parseFloat($(`${prefix}_${p}`).value); if (v) a[p] = v; });
+  return a;
+}
+function shareAmountFor(prefix){
+  if (prefix === "form") return parseFloat($("fAmount").value) || 0;
+  const it = allItems.find(x => x.id === shareSheetId);
+  return Number(it?.amount) || 0;
+}
+window.onShareInput = (prefix) => {
+  const a = readShare(prefix);
+  if (prefix === "form") formAlloc = a; else shareSheetAlloc = a;
+  const total = shareAmountFor(prefix);
+  const sum = allocSum(a);
+  const el = $(`${prefix}_remain`);
+  if (!el) return;
+  if (!total) { el.style.color = "var(--muted)"; el.textContent = `مجموع التقسيم: ${fmt(sum)}`; return; }
+  const diff = Math.round((total - sum)*100)/100;
+  if (diff === 0) { el.style.color = "var(--accent2)"; el.textContent = `✅ التقسيم مضبوط (${fmt(sum)} من ${fmt(total)})`; }
+  else if (diff > 0) { el.style.color = "var(--warn)"; el.textContent = `⚠️ باقي ${fmt(diff)} ما توزّع`; }
+  else { el.style.color = "var(--danger)"; el.textContent = `❌ زايد ${fmt(-diff)} عن المبلغ`; }
+};
+window.splitEqual = (prefix, mode) => {
+  const total = shareAmountFor(prefix);
+  if (!total) { toast("⚠️ اكتب المبلغ أول"); return; }
+  let targets = PARTIES;
+  if (mode === 2) {
+    targets = PARTIES.filter(p => parseFloat($(`${prefix}_${p}`).value));
+    if (targets.length < 2) { toast("⚠️ اكتب أي رقم في خانات الجهات اللي تبي تقسم عليهم أول"); return; }
+  }
+  const each = Math.floor((total / targets.length) * 100) / 100;
+  PARTIES.forEach(p => $(`${prefix}_${p}`).value = "");
+  targets.forEach((p,i) => {
+    $(`${prefix}_${p}`).value = i === targets.length - 1 ? (Math.round((total - each*(targets.length-1))*100)/100) : each;
+  });
+  onShareInput(prefix);
+};
+function validShare(a, amount){
+  const keys = Object.keys(a);
+  if (keys.length < 1) { toast("⚠️ وزّع المبلغ على جهة وحدة على الأقل"); return false; }
+  if (amount && Math.round((allocSum(a) - amount)*100) !== 0) {
+    return confirm(`مجموع التقسيم (${fmt(allocSum(a))}) لا يساوي المبلغ (${fmt(amount)}). تبي تحفظ كذا؟`);
+  }
+  return true;
+}
+
+// ===== النموذج =====
+function renderFormAlloc(){
+  const opts = [{v:null, t:"⏳ بعدين"}, ...PARTIES.map(p => ({v:p, t:`${ICONS[p]} ${p}`})), {v:SHARED, t:"🤝 مشترك"}];
+  $("formAllocChips").innerHTML = opts.map(o => `
+    <button type="button" class="chip ${o.v===SHARED?'shared':''} ${formAllocMode===o.v?'active':''}"
+      onclick='setFormAlloc(${JSON.stringify(o.v)})'>${o.t}</button>`).join("");
+  const box = $("formShareBox");
+  if (formAllocMode === SHARED) {
+    box.classList.add("show");
+    box.innerHTML = shareInputsHtml("form", formAlloc);
+    onShareInput("form");
+  } else { box.classList.remove("show"); box.innerHTML = ""; }
+}
+window.setFormAlloc = (v) => { formAllocMode = v; renderFormAlloc(); };
+$("fAmount").addEventListener("input", () => { if (formAllocMode === SHARED) onShareInput("form"); });
+
+function applyKindToForm(){
+  const inc = activeKind === "income";
+  $("formTitle").textContent = editingId ? "✏️ تعديل" : (inc ? "➕ دخل جديد" : "➕ مصروف جديد");
+  $("lblTitle").textContent = inc ? "البيان / مصدر الدخل" : "البيان / الغرض";
+  $("fTitle").placeholder = inc ? "مثال: إيجار شقة 12، بيع رطب..." : "مثال: صيانة مصعد، كهرباء...";
+  $("lblParty").textContent = inc ? "من مين (الدافع)" : "لمين (المستلم)";
+}
+
+function resetForm(){
+  editingId = null;
+  ["fTitle","fParty","fAmount","fMethod","fNotes"].forEach(id => $(id).value = "");
+  $("fDate").valueAsDate = new Date();
+  selectedImages = []; renderPreviewGrid();
+  formAllocMode = null; formAlloc = {}; renderFormAlloc();
+  $("saveBtn").textContent = "💾 حفظ"; $("saveBtn").style.background = "var(--accent)"; $("saveBtn").style.color = "#fff";
+  $("cancelEditBtn").style.display = "none";
+  applyKindToForm();
+}
+window.resetForm = resetForm;
+
+window.editItem = (id) => {
+  const it = allItems.find(x => x.id === id); if (!it) return;
+  editingId = id;
+  $("fTitle").value = it.title || ""; $("fParty").value = it.party || "";
+  $("fAmount").value = it.amount ?? ""; $("fDate").value = it.date || "";
+  $("fMethod").value = it.method || ""; $("fNotes").value = it.notes || "";
+  selectedImages = getImages(it).slice(); renderPreviewGrid();
+  formAllocMode = it.allocMode || null; formAlloc = Object.assign({}, it.alloc || {}); renderFormAlloc();
+  $("saveBtn").textContent = "💾 تحديث"; $("saveBtn").style.background = "var(--accent2)"; $("saveBtn").style.color = "#000";
+  $("cancelEditBtn").style.display = "block";
+  applyKindToForm();
+  $("formCard").scrollIntoView({ behavior: "smooth" });
+};
+
+$("saveBtn").onclick = async () => {
+  const title = $("fTitle").value.trim();
+  const amountRaw = $("fAmount").value;
+  const amount = amountRaw ? parseFloat(amountRaw) : null;
+  if (!title) { toast("⚠️ اكتب البيان"); return; }
+  if (formAllocMode === SHARED && !validShare(formAlloc, amount)) return;
+
+  const data = {
+    title, party: $("fParty").value.trim(), amount,
+    date: $("fDate").value || null, method: $("fMethod").value.trim(),
+    notes: $("fNotes").value.trim(), images: selectedImages,
+    allocMode: formAllocMode || null,
+    alloc: formAllocMode === SHARED ? formAlloc : null
+  };
+  const btn = $("saveBtn"); btn.disabled = true;
+  try {
+    if (editingId) { await col.doc(editingId).update(data); toast("✅ تم التحديث"); }
+    else {
+      await col.add({ ...data, kind: activeKind, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      toast("✅ تم الحفظ");
+    }
+    resetForm();
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+  finally { btn.disabled = false; }
+};
+
+// ===== الصور =====
+function renderPreviewGrid(){
+  const grid = $("previewGrid");
+  if (!selectedImages.length) { grid.innerHTML = ""; $("pickerText").textContent = "🖼️ صور الإيصال / الفاتورة (اختياري)"; return; }
+  $("pickerText").textContent = `✅ ${selectedImages.length} صورة (اضغط لإضافة أكثر)`;
+  grid.innerHTML = selectedImages.map((src,i) => `
+    <div class="preview-thumb"><img src="${src}">
+      <button type="button" class="preview-del" onclick="event.stopPropagation();removeSelectedImage(${i})">✕</button></div>`).join("");
+}
+window.removeSelectedImage = (i) => { selectedImages.splice(i,1); renderPreviewGrid(); };
+$("picker").onclick = (e) => { if (e.target.id !== "fileInput") $("fileInput").click(); };
+$("fileInput").onchange = (e) => {
+  Array.from(e.target.files || []).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        const scale = Math.min(1, 1000 / img.width);
+        c.width = img.width * scale; c.height = img.height * scale;
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        selectedImages.push(c.toDataURL("image/jpeg", 0.5));
+        renderPreviewGrid();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = "";
+};
+
+// ===== البيانات اللحظية =====
+col.orderBy("createdAt", "desc").onSnapshot((snap) => {
+  allItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  refresh();
+}, (err) => {
+  $("list").innerHTML = `<div class="cfgbox">⚠️ ما قدر يتصل بقاعدة البيانات.<br>تأكد من إعدادات Firebase وقواعد Firestore.<br><br>${escapeHtml(err.message)}</div>`;
+});
+
+function refresh(){ populateYears(); renderPartyFilter(); renderList(); updateTotals(); renderSummary(); }
+
+// ===== التبويبات والفلاتر =====
+window.switchKind = (k) => {
+  activeKind = k;
+  document.querySelectorAll("header .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.kind === k));
+  const isSum = k === "summary";
+  ["formCard","importCard","totalCard","search","list","partyFilter"].forEach(id => $(id).style.display = isSum ? "none" : "");
+  $("summaryArea").style.display = isSum ? "" : "none";
+  partyFilter = "";
+  if (!editingId) resetForm(); else applyKindToForm();
+  refresh();
+};
+
+function renderPartyFilter(){
+  if (activeKind === "summary") return;
+  const opts = [{v:"",t:"الكل"}, ...PARTIES.map(p => ({v:p,t:`${ICONS[p]} ${p}`})), {v:"pending",t:"⏳ بدون جهة"}];
+  $("partyFilter").innerHTML = opts.map(o =>
+    `<button class="tab-btn ${partyFilter===o.v?'active':''}" style="flex:0 0 auto;max-width:none;padding:9px 12px;font-size:12px" onclick="setPartyFilter('${o.v}')">${o.t}</button>`).join("");
+}
+window.setPartyFilter = (v) => { partyFilter = v; renderPartyFilter(); renderList(); updateTotals(); };
+
+function periodFilter(it){
+  const y = $("yearFilter").value, m = $("monthFilter").value;
+  return (!y || (it.date && it.date.startsWith(y))) && (!m || (it.date && it.date.slice(5,7) === m));
+}
+function periodLabel(){
+  const y = $("yearFilter").value, m = $("monthFilter").value;
+  if (y && m) return `${monthNames[+m-1]} ${y}`;
+  if (y) return `سنة ${y}`;
+  if (m) return `شهر ${monthNames[+m-1]} (كل السنوات)`;
+  return "كل الفترات";
+}
+function populateYears(){
+  const years = new Set();
+  allItems.forEach(it => { if (it.date) years.add(it.date.slice(0,4)); });
+  const sel = $("yearFilter"), cur = sel.value;
+  const sorted = [...years].sort().reverse();
+  sel.innerHTML = `<option value="">كل السنوات</option>` + sorted.map(y => `<option value="${y}">${y}</option>`).join("");
+  if (sorted.includes(cur)) sel.value = cur;
+}
+$("monthFilter").innerHTML = `<option value="">كل الشهور</option>` +
+  monthNames.map((m,i) => `<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("");
+$("yearFilter").onchange = () => { renderList(); updateTotals(); renderSummary(); };
+$("monthFilter").onchange = () => { renderList(); updateTotals(); renderSummary(); };
+$("search").oninput = renderList;
+
+// ===== القائمة =====
+function itemCardHtml(it){
+  const imgs = getImages(it);
+  const imgHtml = imgs.length
+    ? `<div style="position:relative;flex-shrink:0;cursor:pointer" onclick="openGalleryForItem('${it.id}')">
+         <img src="${imgs[0]}" style="width:60px;height:60px;object-fit:cover;border-radius:8px">
+         ${imgs.length > 1 ? `<div style="position:absolute;bottom:-4px;left:-4px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:1px 5px">${imgs.length}</div>` : ""}
+       </div>`
+    : `<div style="width:60px;height:60px;border-radius:8px;background:#0c0e13;display:flex;align-items:center;justify-content:center;flex-shrink:0">${it.kind==="income"?"💰":"🧾"}</div>`;
+
+  let allocHtml;
+  if (!it.allocMode) {
+    allocHtml = `<div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+      ${PARTIES.map(p => `<button class="btn-sm" style="background:var(--accent);color:#fff;padding:6px 8px;font-size:11px" onclick="setAlloc('${it.id}','${p}')">${ICONS[p]} ${p}</button>`).join("")}
+      <button class="btn-sm" style="background:var(--purple);color:#fff;padding:6px 8px;font-size:11px" onclick="openShareSheet('${it.id}')">🤝 مشترك</button>
+    </div>`;
+  } else if (it.allocMode === SHARED) {
+    allocHtml = `<div>${PARTIES.filter(p => shareOf(it,p)).map(p => `<span class="tag sh">${ICONS[p]} ${p}: ${fmt(shareOf(it,p))}</span>`).join("")}
+      <span onclick="openShareSheet('${it.id}')" style="cursor:pointer;color:var(--muted);font-size:12px">✏️</span>
+      <span onclick="setAlloc('${it.id}',null)" style="cursor:pointer;color:var(--muted);font-size:12px">↺</span></div>`;
+  } else {
+    allocHtml = `<div><span class="tag">${ICONS[it.allocMode]||"🏷️"} ${escapeHtml(it.allocMode)}</span>
+      <span onclick="setAlloc('${it.id}',null)" style="cursor:pointer;color:var(--muted);font-size:12px">✏️ تغيير</span></div>`;
+  }
+
+  const showShare = partyFilter && partyFilter !== "pending" && it.allocMode === SHARED;
+  return `
+    <div class="item">
+      ${imgHtml}
+      <div class="info">
+        <div class="title">${escapeHtml(it.title)}</div>
+        <div class="sub">👤 ${escapeHtml(it.party||"-")}${it.method ? " • 💳 " + escapeHtml(it.method) : ""}</div>
+        <div class="sub">📅 ${it.date||"-"}${it.notes ? " • " + escapeHtml(it.notes) : ""}</div>
+        ${allocHtml}
+        <div class="amt ${it.kind==='income'?'inc':'exp'}">${it.amount != null ? fmt(it.amount) : "—"}
+          ${showShare ? `<span style="font-size:12px;color:var(--purple)"> (حصة ${partyFilter}: ${fmt(shareOf(it,partyFilter))})</span>` : ""}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="del" style="color:var(--accent2)" onclick="editItem('${it.id}')">✏️</button>
+        <button class="del" onclick="deleteItem('${it.id}')">🗑️</button>
+      </div>
+    </div>`;
+}
+
+function currentItems(){
+  return allItems.filter(it => it.kind === activeKind && periodFilter(it));
+}
+function renderList(){
+  if (activeKind === "summary") return;
+  const q = $("search").value.trim().toLowerCase();
+  const match = (it) => !q || [it.title, it.party, it.notes, it.method].some(v => (v||"").toLowerCase().includes(q));
+  const byDate = (a,b) => (b.date||"").localeCompare(a.date||"");
+  const items = currentItems().filter(match);
+
+  let pending = items.filter(it => !it.allocMode).sort(byDate);
+  let allocated = items.filter(it => it.allocMode).sort(byDate);
+  if (partyFilter === "pending") allocated = [];
+  else if (partyFilter) { pending = []; allocated = allocated.filter(it => shareOf(it, partyFilter) > 0 || it.allocMode === partyFilter); }
+
+  let html = "";
+  if (pending.length) {
+    html += `<div class="secTitle">⏳ بدون جهة (${pending.length})</div>` + pending.map(itemCardHtml).join("");
+  }
+  if (partyFilter !== "pending") {
+    html += `<div class="secTitle">✅ موزّعة (${allocated.length})</div>`;
+    html += allocated.length ? allocated.map(itemCardHtml).join("") : `<div class="empty">لا يوجد شي هنا</div>`;
+  }
+  if (!pending.length && partyFilter === "pending") html = `<div class="empty">كل شي موزّع ✅</div>`;
+  $("list").innerHTML = html;
+}
+
+function updateTotals(){
+  if (activeKind === "summary") return;
+  const items = currentItems();
+  let total, count;
+  if (partyFilter === "pending") { const p = items.filter(it => !it.allocMode); total = p.reduce((s,it)=>s+(+it.amount||0),0); count = p.length; }
+  else if (partyFilter) { const p = items.filter(it => shareOf(it,partyFilter)); total = p.reduce((s,it)=>s+shareOf(it,partyFilter),0); count = p.length; }
+  else { total = items.reduce((s,it)=>s+(+it.amount||0),0); count = items.length; }
+
+  const who = partyFilter === "pending" ? " - بدون جهة" : partyFilter ? ` - ${partyFilter}` : "";
+  $("totalLabel").textContent = `إجمالي ${kindLabel(activeKind)}${who} — ${periodLabel()}`;
+  $("totalAmount").textContent = fmt(total);
+  $("totalAmount").style.color = activeKind === "income" ? "var(--accent2)" : "var(--danger)";
+  $("totalCount").textContent = `${count} عملية`;
+
+  const pend = items.filter(it => !it.allocMode).reduce((s,it)=>s+(+it.amount||0),0);
+  $("partyStats").innerHTML = PARTIES.map(p => `
+    <div class="stat"><div class="l">${ICONS[p]} ${p}</div><div class="v">${fmt(items.reduce((s,it)=>s+shareOf(it,p),0))}</div></div>`).join("")
+    + (pend ? `<div class="stat" style="grid-column:1/-1"><div class="l">⏳ بدون جهة</div><div class="v" style="color:var(--warn)">${fmt(pend)}</div></div>` : "");
+}
+
+// ===== الملخص =====
+function renderSummary(){
+  if (activeKind !== "summary") return;
+  const its = allItems.filter(periodFilter);
+  const inc = its.filter(it => it.kind === "income"), exp = its.filter(it => it.kind === "expense");
+  const sum = (arr, p) => arr.reduce((s,it) => s + shareOf(it,p), 0);
+  const pend = (arr) => arr.filter(it => !it.allocMode).reduce((s,it)=>s+(+it.amount||0),0);
+  const tot = (arr) => arr.reduce((s,it)=>s+(+it.amount||0),0);
+  const net = (v) => `<span style="color:${v>=0?'var(--accent2)':'var(--danger)'}">${fmt(v)}</span>`;
+
+  const rows = PARTIES.map(p => {
+    const i = sum(inc,p), e = sum(exp,p);
+    return `<tr><td>${ICONS[p]} ${p}</td><td style="color:var(--accent2)">${fmt(i)}</td><td style="color:var(--danger)">${fmt(e)}</td><td><b>${net(i-e)}</b></td></tr>`;
+  }).join("");
+  const pi = pend(inc), pe = pend(exp);
+  const ti = tot(inc), te = tot(exp);
+
+  $("summaryArea").innerHTML = `
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:8px">📊 الملخص — ${periodLabel()}</div>
+      <table class="sum">
+        <thead><tr><th>الجهة</th><th>الدخل</th><th>المصروف</th><th>الصافي</th></tr></thead>
+        <tbody>
+          ${rows}
+          ${(pi||pe) ? `<tr><td>⏳ بدون جهة</td><td style="color:var(--warn)">${fmt(pi)}</td><td style="color:var(--warn)">${fmt(pe)}</td><td>-</td></tr>` : ""}
+          <tr style="font-weight:700"><td>الإجمالي</td><td style="color:var(--accent2)">${fmt(ti)}</td><td style="color:var(--danger)">${fmt(te)}</td><td>${net(ti-te)}</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">العمليات: ${inc.length} دخل • ${exp.length} مصروف</div>
+    </div>`;
+}
+
+// ===== تحديد الجهة =====
+window.setAlloc = async (id, p) => {
+  try {
+    await col.doc(id).update({ allocMode: p, alloc: null });
+    if (p) toast(`✅ ${ICONS[p]} ${p}`);
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+};
+window.openShareSheet = (id) => {
+  const it = allItems.find(x => x.id === id); if (!it) return;
+  shareSheetId = id;
+  shareSheetAlloc = it.allocMode === SHARED ? Object.assign({}, it.alloc||{}) : {};
+  $("shareSheetInfo").textContent = `${it.title} — المبلغ: ${it.amount != null ? fmt(it.amount) : "غير محدد"}`;
+  $("shareSheetBox").innerHTML = shareInputsHtml("sheet", shareSheetAlloc);
+  onShareInput("sheet");
+  $("shareSheet").classList.add("show");
+};
+window.saveShareSheet = async () => {
+  const it = allItems.find(x => x.id === shareSheetId); if (!it) return;
+  const a = readShare("sheet");
+  if (!validShare(a, Number(it.amount)||0)) return;
+  try {
+    await col.doc(shareSheetId).update({ allocMode: SHARED, alloc: a });
+    closeSheet("shareSheet"); toast("✅ تم حفظ التقسيم");
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+};
+window.closeSheet = (id) => $(id).classList.remove("show");
+
+window.deleteItem = async (id) => {
+  if (!confirm("متأكد تبي تحذف هذي العملية؟")) return;
+  await col.doc(id).delete(); toast("🗑️ تم الحذف");
+};
+
+// ===== الاستيراد من Excel / CSV =====
+let importRows = [], importHeaders = [];
+const FIELDS = [
+  { key:"date",   label:"📅 التاريخ",              guess:["تاريخ","date","التاريخ"] },
+  { key:"title",  label:"📝 البيان / الغرض",        guess:["بيان","البيان","غرض","الغرض","وصف","description","details","تفاصيل","مصدر"] },
+  { key:"party",  label:"👤 الاسم (المستلم/الدافع)", guess:["مستلم","المستلم","اسم","الاسم","دافع","name","المستأجر","المورد"] },
+  { key:"amount", label:"💵 المبلغ",               guess:["مبلغ","المبلغ","amount","قيمة","القيمة","total","الاجمالي","الإجمالي"] },
+  { key:"method", label:"💳 طريقة الدفع",          guess:["طريقة","دفع","method","حساب"] },
+  { key:"notes",  label:"🗒️ ملاحظات",             guess:["ملاحظ","notes","note"] },
+  { key:"alloc",  label:"🏷️ الجهة (اختياري)",      guess:["جهة","الجهة","حساب مين","على"] },
+];
+
+window.openImport = () => {
+  $("importTitle").textContent = `📥 استيراد إلى ${kindLabel(activeKind)}`;
+  $("importFile").value = ""; $("importBody").innerHTML = ""; $("importGo").style.display = "none";
+  $("importSheet").classList.add("show");
+};
+
+$("importFile").onchange = async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:"array", cellDates:true });
+    window._wb = wb;
+    const sheetSel = wb.SheetNames.length > 1
+      ? `<label>الورقة</label><select id="impSheet" onchange="loadSheet(this.value)">${wb.SheetNames.map(n=>`<option>${escapeHtml(n)}</option>`).join("")}</select>` : "";
+    $("importBody").innerHTML = sheetSel + `<div id="impMap"></div>`;
+    loadSheet(wb.SheetNames[0]);
+  } catch (err) { toast("❌ ما قدرت أقرأ الملف: " + err.message); }
+};
+
+window.loadSheet = (name) => {
+  const rows = XLSX.utils.sheet_to_json(window._wb.Sheets[name], { header:1, defval:"", raw:true });
+  // أول صف فيه 2+ خلايا نصية = العناوين
+  let h = rows.findIndex(r => r.filter(c => typeof c === "string" && c.trim()).length >= 2);
+  if (h < 0) h = 0;
+  importHeaders = (rows[h]||[]).map((c,i) => String(c||"").trim() || `عمود ${i+1}`);
+  importRows = rows.slice(h+1).filter(r => r.some(c => String(c).trim() !== ""));
+
+  // تخمين الأعمدة بدون تكرار: المطابقة التامة أول، والجهة قبل الاسم
+  const used = new Set(), guesses = {};
+  const norm = (x) => x.toLowerCase().trim();
+  ["alloc","date","amount","title","notes","method","party"].forEach(k => {
+    const f = FIELDS.find(x => x.key === k);
+    let i = importHeaders.findIndex((hd,j) => !used.has(j) && f.guess.some(g => norm(hd) === norm(g)));
+    if (i < 0) i = importHeaders.findIndex((hd,j) => !used.has(j) && f.guess.some(g => norm(hd).includes(norm(g))));
+    if (i >= 0) used.add(i);
+    guesses[k] = i;
+  });
+  const guessCol = (f) => guesses[f.key];
+  $("impMap").innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-top:10px">تم العثور على ${importRows.length} صف. تأكد من ربط الأعمدة:</div>
+    ${FIELDS.map(f => { const g = guessCol(f); return `
+      <label>${f.label}</label>
+      <select id="map_${f.key}">
+        <option value="-1">— لا يوجد —</option>
+        ${importHeaders.map((hd,i) => `<option value="${i}" ${i===g?"selected":""}>${escapeHtml(hd)}</option>`).join("")}
+      </select>`; }).join("")}
+    <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="impAbs" checked style="width:auto"> حوّل المبالغ السالبة لموجبة</label>
+    <div id="impPreview"></div>`;
+  FIELDS.forEach(f => $(`map_${f.key}`).onchange = renderImportPreview);
+  renderImportPreview();
+  $("importGo").style.display = "block";
+};
+
+function toNum(v){
+  if (typeof v === "number") return v;
+  let s = String(v||"").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+    .replace(/٫/g,".").replace(/[,،\s]/g,"");
+  const neg = /^\(.*\)$/.test(s) || s.startsWith("-");
+  s = s.replace(/[^0-9.]/g,"");
+  if (!s) return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : (neg ? -n : n);
+}
+function pad(n){ return String(n).padStart(2,"0"); }
+function toDate(v){
+  if (!v && v !== 0) return null;
+  if (v instanceof Date && !isNaN(v)) {
+    const d = new Date(v.getTime() + 12*3600*1000); // تفادي فرق التوقيت
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+  }
+  if (typeof v === "number" && v > 20000 && v < 80000) {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+  }
+  const s = String(v).trim().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); // يوم/شهر/سنة
+  if (m) { const y = m[3].length === 2 ? "20"+m[3] : m[3]; return `${y}-${pad(m[2])}-${pad(m[1])}`; }
+  return null;
+}
+function matchParty(s){
+  s = String(s||"").trim(); if (!s) return null;
+  if (PARTIES.includes(s)) return s;
+  if (PARTIES.includes(s.replace(/ه$/,"ة"))) return s.replace(/ه$/,"ة");
+  if (s.includes("بناي")) return "بناية";
+  if (s.includes("عبدالله") || s.includes("عبد الله")) return "الشيخ عبدالله";
+  if (s.includes("ورث")) return "ورثة";
+  if (s.includes("سعود")) return "سعودية";
+  return PARTIES.find(p => s.includes(p)) || null;
+}
+// يقبل: اسم جهة، أو "مشترك: الشيخ عبدالله=960؛ سهيل=1360"
+function parseAlloc(v){
+  const s = String(v||"").trim(); if (!s) return { allocMode:null, alloc:null };
+  if (s.startsWith("مشترك")) {
+    const alloc = {};
+    s.replace(/^مشترك\s*:?/,"").split(/[؛;،,]/).forEach(part => {
+      const [n, a] = part.split("="); const p = matchParty(n); const amt = toNum(a);
+      if (p && amt) alloc[p] = (alloc[p]||0) + amt;
+    });
+    return Object.keys(alloc).length ? { allocMode:SHARED, alloc } : { allocMode:null, alloc:null };
+  }
+  return { allocMode: matchParty(s), alloc: null };
+}
+function buildImportItems(){
+  const idx = {}; FIELDS.forEach(f => idx[f.key] = +$(`map_${f.key}`).value);
+  const get = (r,k) => idx[k] >= 0 ? r[idx[k]] : "";
+  const abs = $("impAbs").checked;
+  return importRows.map(r => {
+    let amount = toNum(get(r,"amount"));
+    if (abs && amount != null) amount = Math.abs(amount);
+    const title = String(get(r,"title")||"").trim();
+    return {
+      date: toDate(get(r,"date")), title: title || String(get(r,"party")||"").trim(),
+      party: String(get(r,"party")||"").trim(), amount,
+      method: String(get(r,"method")||"").trim(), notes: String(get(r,"notes")||"").trim(),
+      ...parseAlloc(get(r,"alloc"))
+    };
+  }).filter(it => it.title || it.amount != null);
+}
+function renderImportPreview(){
+  const items = buildImportItems();
+  const total = items.reduce((s,it)=>s+(it.amount||0),0);
+  $("impPreview").innerHTML = `
+    <div style="font-size:13px;margin-top:12px">سيتم استيراد <b>${items.length}</b> عملية — المجموع <b>${fmt(total)}</b></div>
+    <div style="overflow-x:auto"><table class="prevTable">
+      <tr><th>التاريخ</th><th>البيان</th><th>الاسم</th><th>المبلغ</th><th>الجهة</th></tr>
+      ${items.slice(0,6).map(it => `<tr><td>${it.date||"-"}</td><td>${escapeHtml(it.title)}</td><td>${escapeHtml(it.party)}</td><td>${it.amount??"-"}</td><td>${it.allocMode===SHARED ? "مشترك" : (it.allocMode||"-")}</td></tr>`).join("")}
+    </table></div>
+    ${items.length > 6 ? `<div style="font-size:12px;color:var(--muted)">... و ${items.length-6} غيرها</div>` : ""}`;
+}
+
+window.doImport = async () => {
+  const items = buildImportItems();
+  if (!items.length) { toast("⚠️ ما في بيانات"); return; }
+  if (!confirm(`استيراد ${items.length} عملية إلى ${kindLabel(activeKind)}؟`)) return;
+  const btn = $("importGo"); btn.disabled = true; btn.textContent = "⏳ جاري الاستيراد...";
+  const batchId = String(Date.now());
+  try {
+    for (let i = 0; i < items.length; i += 400) {
+      const batch = db.batch();
+      items.slice(i, i+400).forEach(it => batch.set(col.doc(), {
+        ...it, images: [], kind: activeKind, importBatch: batchId,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }));
+      await batch.commit();
+    }
+    toast(`✅ تم استيراد ${items.length} عملية`);
+    closeSheet("importSheet");
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+  finally { btn.disabled = false; btn.textContent = "✅ استيراد"; }
+};
+
+// للعمليات اللي بدون جهة وخانة الاسم فيها اسم جهة بالضبط (مثل: بناية / عبدالله / سهيل)
+function strictParty(v){
+  let s = String(v||"").trim(); if (!s) return null;
+  if (s === "عبدالله" || s === "عبد الله") return "الشيخ عبدالله";
+  if (s === "بنايه") return "بناية";
+  if (s === "سعوديه") return "سعودية";
+  return PARTIES.includes(s) ? s : null;
+}
+window.autoAllocFromName = async () => {
+  const list = allItems.filter(it => it.kind === activeKind && !it.allocMode && strictParty(it.party));
+  if (!list.length) { toast("ما في عمليات تنطبق"); return; }
+  if (!confirm(`توزيع ${list.length} عملية على الجهة المكتوبة في خانة الاسم؟`)) return;
+  try {
+    for (let i = 0; i < list.length; i += 400) {
+      const batch = db.batch();
+      list.slice(i, i+400).forEach(it => batch.update(col.doc(it.id), { allocMode: strictParty(it.party), alloc: null, party: "" }));
+      await batch.commit();
+    }
+    toast(`✅ تم توزيع ${list.length} عملية`);
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+};
+
+window.undoLastImport = async () => {
+  const batches = allItems.filter(it => it.kind === activeKind && it.importBatch).map(it => it.importBatch);
+  if (!batches.length) { toast("ما في استيراد سابق هنا"); return; }
+  const last = batches.sort().pop();
+  const toDel = allItems.filter(it => it.importBatch === last);
+  if (!confirm(`حذف آخر استيراد (${toDel.length} عملية من ${new Date(+last).toLocaleString("ar")})؟`)) return;
+  try {
+    for (let i = 0; i < toDel.length; i += 400) {
+      const batch = db.batch();
+      toDel.slice(i, i+400).forEach(it => batch.delete(col.doc(it.id)));
+      await batch.commit();
+    }
+    toast(`🗑️ تم حذف ${toDel.length} عملية`);
+  } catch (err) { toast("❌ خطأ: " + err.message); }
+};
+
+// ===== الطباعة =====
+$("printBtn").onclick = () => {
+  const pl = periodLabel();
+  const its = allItems.filter(periodFilter);
+  const byDate = (a,b) => (a.date||"").localeCompare(b.date||"");
+  const row = (it, i, p) => `<tr><td>${i+1}</td><td>${it.date||"-"}</td><td>${escapeHtml(it.title)}</td><td>${escapeHtml(it.party||"")}</td>
+    <td>${it.amount != null ? fmt(it.amount) : "-"}</td>${p ? `<td><b>${fmt(shareOf(it,p))}</b>${it.allocMode===SHARED?" (مشترك)":""}</td>` : ""}<td>${escapeHtml(it.notes||"")}</td></tr>`;
+  const table = (items, heading, p) => {
+    const t = items.reduce((s,it) => s + (p ? shareOf(it,p) : (+it.amount||0)), 0);
+    return `<h2>${heading}</h2><table><thead><tr><th>#</th><th>التاريخ</th><th>البيان</th><th>الاسم</th><th>المبلغ</th>${p?"<th>الحصة</th>":""}<th>ملاحظات</th></tr></thead>
+      <tbody>${items.map((it,i)=>row(it,i,p)).join("")}</tbody>
+      <tfoot><tr><td colspan="${p?5:4}" style="text-align:left"><b>الإجمالي</b></td><td colspan="2"><b>${fmt(t)}</b></td></tr></tfoot></table>`;
+  };
+
+  let html = "";
+  if (activeKind === "summary") {
+    renderSummary();
+    html = $("summaryArea").innerHTML.replace(/class="card"/g, "");
+  } else {
+    const items = its.filter(it => it.kind === activeKind).sort(byDate);
+    const kl = kindLabel(activeKind);
+    if (partyFilter === "pending") {
+      const p = items.filter(it => !it.allocMode);
+      if (p.length) html = table(p, `${kl} بدون جهة - ${pl}`);
+    } else if (partyFilter) {
+      const p = items.filter(it => shareOf(it, partyFilter));
+      if (p.length) html = table(p, `${kl} - ${partyFilter} - ${pl}`, partyFilter);
+    } else {
+      PARTIES.forEach(p => {
+        const g = items.filter(it => shareOf(it,p));
+        if (g.length) html += table(g, `${kl} - ${p} - ${pl}`, p) + `<div style="page-break-after:always"></div>`;
+      });
+      const pend = items.filter(it => !it.allocMode);
+      if (pend.length) html += table(pend, `${kl} بدون جهة - ${pl}`);
+      if (html) html += `<h2>إجمالي ${kl}: ${fmt(items.reduce((s,it)=>s+(+it.amount||0),0))}</h2>`;
+    }
+  }
+  if (!html) { toast("⚠️ لا توجد عمليات لهذه الفترة"); return; }
+
+  const page = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تقرير</title><style>
+body{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;color:#111;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px}
+th,td{border:1px solid #999;padding:6px;text-align:right}
+th{background:#eee} h2{text-align:center} span{color:inherit!important}
+.hint{text-align:center;color:#666;font-size:13px;margin-bottom:14px}
+@media print{.hint{display:none}}
+</style></head><body><div class="hint">للطباعة أو الحفظ PDF: زر المشاركة/القائمة في المتصفح ثم "طباعة"</div>${html}</body></html>`;
+  window.open(URL.createObjectURL(new Blob([page], { type:"text/html" })), "_blank");
+};
+
+// ===== معرض الصور =====
+let galleryImages = [], galleryIndex = 0;
+function renderGallery(){
+  $("modalImg").src = galleryImages[galleryIndex] || "";
+  $("modalCounter").textContent = galleryImages.length > 1 ? `${galleryIndex+1} / ${galleryImages.length}` : "";
+  const show = galleryImages.length > 1 ? "flex" : "none";
+  $("modalPrev").style.display = show; $("modalNext").style.display = show;
+}
+window.openGalleryForItem = (id) => {
+  const it = allItems.find(x => x.id === id); if (!it) return;
+  galleryImages = getImages(it); galleryIndex = 0; if (!galleryImages.length) return;
+  renderGallery(); $("modal").classList.add("show");
+};
+window.galleryPrev = (e) => { e.stopPropagation(); galleryIndex = (galleryIndex - 1 + galleryImages.length) % galleryImages.length; renderGallery(); };
+window.galleryNext = (e) => { e.stopPropagation(); galleryIndex = (galleryIndex + 1) % galleryImages.length; renderGallery(); };
+$("modal").onclick = () => $("modal").classList.remove("show");
+
+// تشغيل أولي
+resetForm();
+switchKind("expense");
+</script>
+</body>
+</html>
